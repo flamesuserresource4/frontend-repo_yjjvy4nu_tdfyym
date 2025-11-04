@@ -7,31 +7,42 @@
     <style>
       :root { color-scheme: light dark; }
       body { font-family: -apple-system, system-ui, Segoe UI, Roboto, Inter, sans-serif; margin: 0; }
-      .wrap { width: 320px; padding: 12px; background: #fff; color: #0f172a; }
-      .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+      .wrap { width: 340px; padding: 12px; background: #fff; color: #0f172a; }
+      .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 16px; }
+      .logo { width: 22px; height: 22px; border-radius: 8px; background: linear-gradient(135deg,#0ea5e9,#6366f1); box-shadow: 0 3px 8px rgba(99,102,241,.35) }
       .muted { color: #475569; font-size: 12px; }
       .card { border: 1px solid rgba(0,0,0,.08); border-radius: 12px; overflow: hidden; box-shadow: 0 6px 20px rgba(2,6,23,.08);} 
       .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-      .btn { appearance: none; border: 1px solid rgba(0,0,0,.12); background: #0f172a; color: #fff; padding: 8px 12px; border-radius: 10px; cursor: pointer; font-weight: 600; }
+      .btn { appearance: none; border: 1px solid rgba(0,0,0,.12); background: #0f172a; color: #fff; padding: 8px 12px; border-radius: 10px; cursor: pointer; font-weight: 700; }
       .btn.secondary { background: #fff; color: #0f172a; }
       textarea { width: 100%; min-height: 70px; resize: vertical; border-radius: 10px; border: 1px solid rgba(0,0,0,.12); padding: 8px; font-family: inherit; font-size: 14px; }
       .pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; border: 1px solid rgba(0,0,0,.12); }
-      .answer { font-weight: 700; }
+      .answer { font-weight: 800; }
       .spacer { height: 8px; }
       .divider { height: 1px; background: rgba(0,0,0,.06); margin: 8px 0; }
       label { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #334155; }
       input[type="checkbox"] { width: 16px; height: 16px; }
+      input[type="url"] { width: 100%; padding: 8px; border-radius: 10px; border: 1px solid rgba(0,0,0,.12); font-family: inherit; font-size: 12px; }
+      .small { font-size: 11px; }
+      .right { display:flex; align-items:center; gap:8px; }
     </style>
   </head>
   <body>
     <div class="wrap">
       <div class="row">
-        <div class="brand">Tommy <span class="muted">— one‑word AI</span></div>
-        <button id="toggle-site" class="btn secondary" title="Allow current site"></button>
+        <div class="brand"><span class="logo"></span>Tommy <span class="muted">— one‑word AI</span></div>
+        <div class="right">
+          <button id="copy-answer" class="btn secondary" title="Copy answer">Copy</button>
+          <button id="toggle-site" class="btn secondary" title="Allow current site"></button>
+        </div>
       </div>
       <div class="spacer"></div>
       <div class="card" style="padding:12px;">
         <label><input id="restrict" type="checkbox" /> Only respond on allowed sites</label>
+        <div class="divider"></div>
+        <label><input id="use-backend" type="checkbox" /> Use backend API for answers</label>
+        <div class="spacer"></div>
+        <input id="backend-url" type="url" placeholder="https://your-backend.example.com" />
         <div class="divider"></div>
         <textarea id="q" placeholder="Ask in a word or short sentence…"></textarea>
         <div class="spacer"></div>
@@ -42,9 +53,9 @@
         <div class="divider"></div>
         <div class="muted">Answer</div>
         <div id="a" class="answer"></div>
+        <div class="spacer"></div>
+        <div class="muted small">Tip: select text on a page and right‑click → “Ask Tommy”.</div>
       </div>
-      <div class="spacer"></div>
-      <div class="muted">Tip: select text on a page and right‑click → “Ask Tommy”.</div>
     </div>
     <script src="popup.js"></script>
   </body>

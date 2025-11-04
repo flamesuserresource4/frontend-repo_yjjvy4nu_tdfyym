@@ -12,7 +12,7 @@ function getHostFromUrl(url) {
 async function getSettings() {
   return new Promise(resolve => {
     chrome.runtime.sendMessage({ type: "GET_SETTINGS" }, (res) => {
-      resolve(res?.settings || { restrictToAllowed: false, allowedHosts: [] });
+      resolve(res?.settings || { restrictToAllowed: false, allowedHosts: [], backendEnabled: false, backendUrl: "" });
     });
   });
 }
@@ -29,6 +29,18 @@ async function allowHost(host, allow) {
   });
 }
 
+async function setBackendEnabled(v) {
+  return new Promise(resolve => {
+    chrome.runtime.sendMessage({ type: "SET_BACKEND_ENABLED", value: v }, (res) => resolve(res?.settings));
+  });
+}
+
+async function setBackendUrl(url) {
+  return new Promise(resolve => {
+    chrome.runtime.sendMessage({ type: "SET_BACKEND_URL", value: url }, (res) => resolve(res?.settings));
+  });
+}
+
 async function askTommy(tabId, question) {
   return new Promise(resolve => {
     chrome.runtime.sendMessage({ type: "POPUP_ASK", tabId, question }, (res) => {
@@ -42,22 +54,36 @@ async function askTommy(tabId, question) {
   const host = getHostFromUrl(tab?.url || "");
 
   const restrictEl = document.getElementById("restrict");
+  const useBackendEl = document.getElementById("use-backend");
+  const backendUrlEl = document.getElementById("backend-url");
   const qEl = document.getElementById("q");
   const aEl = document.getElementById("a");
   const askBtn = document.getElementById("ask");
   const sitePill = document.getElementById("site-pill");
   const toggleSiteBtn = document.getElementById("toggle-site");
+  const copyAnswerBtn = document.getElementById("copy-answer");
 
   sitePill.textContent = `site: ${host || "—"}`;
 
   let settings = await getSettings();
   restrictEl.checked = !!settings.restrictToAllowed;
+  useBackendEl.checked = !!settings.backendEnabled;
+  backendUrlEl.value = settings.backendUrl || "";
 
   const isAllowed = (settings.allowedHosts || []).includes(host);
   toggleSiteBtn.textContent = isAllowed ? "Remove site" : "Allow site";
 
   restrictEl.addEventListener("change", async (e) => {
     settings = await toggleRestrict(e.target.checked);
+  });
+
+  useBackendEl.addEventListener("change", async (e) => {
+    settings = await setBackendEnabled(e.target.checked);
+  });
+
+  backendUrlEl.addEventListener("change", async (e) => {
+    const url = e.target.value.trim();
+    settings = await setBackendUrl(url);
   });
 
   toggleSiteBtn.addEventListener("click", async () => {
@@ -71,5 +97,11 @@ async function askTommy(tabId, question) {
     aEl.textContent = "…";
     const answer = await askTommy(tab.id, question);
     aEl.textContent = answer || "";
+  });
+
+  copyAnswerBtn.addEventListener("click", async () => {
+    const text = (aEl.textContent || "").trim();
+    if (!text) return;
+    try { await navigator.clipboard.writeText(text); copyAnswerBtn.textContent = "Copied"; setTimeout(() => copyAnswerBtn.textContent = "Copy", 1200); } catch {}
   });
 })();

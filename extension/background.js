@@ -22,7 +22,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     return;
   }
 
-  const answer = generateConciseAnswer(info.selectionText || "", context);
+  const answer = await getAnswerWithOptionalBackend(info.selectionText || "", context);
   await chrome.tabs.sendMessage(tabId, { type: "TOMMY_SHOW_ANSWER", payload: { question: info.selectionText || "", answer, hostname: context.hostname } });
 });
 
@@ -41,7 +41,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ ok: true, answer: "Restricted" });
         return;
       }
-      const answer = generateConciseAnswer(question || "", context);
+      const answer = await getAnswerWithOptionalBackend(question || "", context);
       sendResponse({ ok: true, answer });
     })();
     return true; // keep channel open
@@ -78,11 +78,31 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     })();
     return true;
   }
+
+  if (message?.type === "SET_BACKEND_ENABLED") {
+    (async () => {
+      const current = await getSettings();
+      const next = { ...current, backendEnabled: !!message.value };
+      await chrome.storage.sync.set({ tommySettings: next });
+      sendResponse({ ok: true, settings: next });
+    })();
+    return true;
+  }
+
+  if (message?.type === "SET_BACKEND_URL") {
+    (async () => {
+      const current = await getSettings();
+      const next = { ...current, backendUrl: String(message.value || "").trim() };
+      await chrome.storage.sync.set({ tommySettings: next });
+      sendResponse({ ok: true, settings: next });
+    })();
+    return true;
+  }
 });
 
 async function getSettings() {
   const { tommySettings } = await chrome.storage.sync.get({
-    tommySettings: { restrictToAllowed: false, allowedHosts: [] }
+    tommySettings: { restrictToAllowed: false, allowedHosts: [], backendEnabled: false, backendUrl: "" }
   });
   return tommySettings;
 }
@@ -100,6 +120,38 @@ async function getTabContext(tabId) {
   } catch (e) {
     return null;
   }
+}
+
+// Try backend first (if enabled), else fallback to local algorithm
+async function getAnswerWithOptionalBackend(question, context) {
+  const settings = await getSettings();
+  const q = (question || "").trim();
+
+  if (settings.backendEnabled && settings.backendUrl) {
+    try {
+      const url = new URL("/concise", settings.backendUrl).toString();
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: q,
+          title: context?.title || "",
+          text: context?.text || "",
+          selection: context?.selection || "",
+          hostname: context?.hostname || ""
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const ans = String(data?.answer || "").trim();
+        // Enforce final format guardrail
+        return enforceConcise(ans, q, context);
+      }
+    } catch (_) {
+      // ignore and fall back
+    }
+  }
+  return generateConciseAnswer(q, context);
 }
 
 // Core concise answer logic: returns one word OR one short sentence
@@ -123,6 +175,27 @@ function generateConciseAnswer(question, context) {
   return sentence;
 }
 
+function enforceConcise(answer, question, context) {
+  const ans = String(answer || "").trim();
+  if (!ans) return generateConciseAnswer(question, context);
+
+  // If question asks for one word OR selection is short, reduce to one keyword
+  if (/\b(one\s*word|single\s*word)\b/i.test(question || "")) {
+    return ans.split(/\s+/)[0];
+  }
+
+  const base = (context?.selection || "").trim() || (context?.title || "").trim();
+  if ((base || "").split(/\s+/).length <= 3) {
+    return topKeyword(base) || ans.split(/\s+/)[0];
+  }
+
+  // Else cap at ~12 words and ensure punctuation
+  const words = ans.replace(/\s+/g, " ").split(" ").slice(0, 12);
+  let short = words.join(" ");
+  if (!/[.!?]$/.test(short)) short += ".";
+  return short;
+}
+
 function topKeyword(text) {
   const stop = new Set(["the","a","an","and","or","of","to","in","on","for","with","is","are","was","were","be","as","by","at","from","that","this","it","its","into","over","under","than","then","but","so","if"]);
   const words = (text.toLowerCase().match(/[a-zA-Z][a-zA-Z\-']+/g) || []).filter(w => !stop.has(w));
@@ -130,7 +203,7 @@ function topKeyword(text) {
   for (const w of words) freq.set(w, (freq.get(w) || 0) + 1);
   let top = ""; let max = 0;
   for (const [w, c] of freq) if (c > max) { max = c; top = w; }
-  return top.charAt(0).toUpperCase() + top.slice(1);
+  return top ? top.charAt(0).toUpperCase() + top.slice(1) : "";
 }
 
 function summarizeToOneSentence(text, question) {
